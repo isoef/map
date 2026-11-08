@@ -7,9 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<!-- مكتبة Plotly للرسوم البيانية -->
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-<!-- مكتبة Leaflet للخريطة -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -307,7 +305,6 @@ let selectedCategories = new Set(CATEGORIES.map(c => c.key));
 let map;
 let geoJsonLayer;
 
-// بيانات السكان لربطها بالخريطة
 const regionsDataEn = {
   "Ar Riyad": 8591748, "Makkah": 8021463, "Ash Sharqiyah": 5125254,
   "Al Madinah": 2137983, "`Asir": 2024285, "Jizan": 1404997,
