@@ -329,8 +329,8 @@ function initMap() {
   }).addTo(map);
 
   // جلب ملف الحدود الحقيقية من مستودعك على GitHub
-  fetch('https://raw.githubusercontent.com/isoef/map/main/SAU_adm1.json')
-    .then(res => {
+fetch('https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1.json')
+  .then(res => {
       if(!res.ok) throw new Error('Network error');
       return res.json();
     })
