@@ -300,7 +300,7 @@ let selectedRegions = new Set(regions.map(r => r.id));
 let selectedCategories = new Set(CATEGORIES.map(c => c.key));
 
 // ==========================================
-// 1. الخريطة (Leaflet + GitHub Raw Data)
+// 1. الخريطة (Leaflet + jsDelivr Raw Data)
 // ==========================================
 let map;
 let geoJsonLayer;
@@ -328,9 +328,9 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  // جلب ملف الحدود الحقيقية من مستودعك على GitHub
-fetch('https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1.json')
-  .then(res => {
+  // جلب ملف الحدود الحقيقية من jsDelivr (الذي يعمل بنجاح)
+  fetch('https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1.json')
+    .then(res => {
       if(!res.ok) throw new Error('Network error');
       return res.json();
     })
