@@ -10,6 +10,8 @@
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- مكتبة shpjs لقراءة ملفات الـ Shapefile في المتصفح -->
+<script src="https://unpkg.com/shpjs@4.0.2/dist/shp.min.js"></script>
 
 <style>
   :root{
@@ -324,65 +326,64 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  const geojsonUrl = 'https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1.json';
-
-  fetch(geojsonUrl)
-    .then(res => {
-      if(!res.ok) throw new Error('Network error');
-      return res.json();
-    })
-    .then(data => {
-      document.getElementById('map-loading').style.display = 'none';
-      
-      geoJsonLayer = L.geoJSON(data, {
-        style: function(feature) {
-          const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
-          let pop = 0;
-          for (let key in regionsDataEn) {
-            if (engName.includes(key) || key.includes(engName)) { pop = regionsDataEn[key]; break; }
-          }
-          
-          const maxPop = 9000000;
-          const opacity = Math.max(0.2, Math.min(0.85, pop / maxPop));
-          
-          return {
-            fillColor: `rgba(2, 123, 95, ${opacity})`,
-            weight: 2,
-            opacity: 1,
-            color: '#CBA877',
-            fillOpacity: 0.65
-          };
-        },
-        onEachFeature: function (feature, layer) {
-          const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
-          let arName = engName;
-          let pop = 0;
-          
-          for (let key in nameArMap) {
-            if (engName.includes(key) || key.includes(engName)) { arName = nameArMap[key]; pop = regionsDataEn[key]; break; }
-          }
-          
-          layer.on('mouseover', function () {
-            this.setStyle({ weight: 3, color: '#ffffff', fillOpacity: 0.85 });
-            this.bringToFront();
-          });
-          layer.on('mouseout', function () { geoJsonLayer.resetStyle(this); });
-          layer.on('click', function () {
-            const targetRegion = regions.find(r => r.name === arName);
-            if(targetRegion) {
-              if(selectedRegions.size === 1 && selectedRegions.has(targetRegion.id)) selectedRegions = new Set(regions.map(x => x.id));
-              else selectedRegions = new Set([targetRegion.id]);
-              buildRegionList(); refreshAll();
-            }
-          });
-          layer.bindTooltip(arName, { permanent: false, direction: 'top', className: 'leaflet-tooltip' });
+  // استخدام مكتبة shpjs لقراءة ملف الـ Shapefile مباشرة من GitHub
+  // سيتم قراءة الملفات الأربعة (shp, dbf, shx, prj) من نفس المجلد
+  const baseUrl = 'https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1';
+  
+  shp(baseUrl).then(function(geojson) {
+    document.getElementById('map-loading').style.display = 'none';
+    
+    // في حال كان الملف يحتوي على أكثر من طبقة، نأخذ الأولى
+    const data = geojson.features ? geojson : geojson[0]; 
+    
+    geoJsonLayer = L.geoJSON(data, {
+      style: function(feature) {
+        const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
+        let pop = 0;
+        for (let key in regionsDataEn) {
+          if (engName.includes(key) || key.includes(engName)) { pop = regionsDataEn[key]; break; }
         }
-      }).addTo(map);
-    })
-    .catch(err => {
-      document.getElementById('map-loading').innerText = 'تعذر الاتصال بالخادم لجلب الحدود. تأكد من صحة الرابط.';
-      console.error(err);
-    });
+        
+        const maxPop = 9000000;
+        const opacity = Math.max(0.2, Math.min(0.85, pop / maxPop));
+        
+        return {
+          fillColor: `rgba(2, 123, 95, ${opacity})`,
+          weight: 2,
+          opacity: 1,
+          color: '#CBA877',
+          fillOpacity: 0.65
+        };
+      },
+      onEachFeature: function (feature, layer) {
+        const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
+        let arName = engName;
+        let pop = 0;
+        
+        for (let key in nameArMap) {
+          if (engName.includes(key) || key.includes(engName)) { arName = nameArMap[key]; pop = regionsDataEn[key]; break; }
+        }
+        
+        layer.on('mouseover', function () {
+          this.setStyle({ weight: 3, color: '#ffffff', fillOpacity: 0.85 });
+          this.bringToFront();
+        });
+        layer.on('mouseout', function () { geoJsonLayer.resetStyle(this); });
+        layer.on('click', function () {
+          const targetRegion = regions.find(r => r.name === arName);
+          if(targetRegion) {
+            if(selectedRegions.size === 1 && selectedRegions.has(targetRegion.id)) selectedRegions = new Set(regions.map(x => x.id));
+            else selectedRegions = new Set([targetRegion.id]);
+            buildRegionList(); refreshAll();
+          }
+        });
+        layer.bindTooltip(arName, { permanent: false, direction: 'top', className: 'leaflet-tooltip' });
+      }
+    }).addTo(map);
+  }).catch(function(err) {
+    document.getElementById('map-loading').innerText = 'تعذر قراءة ملف الـ Shapefile. تأكد من صحة الرابط.';
+    console.error(err);
+  });
 }
 
 const loadingBar = document.getElementById('loading-bar');
