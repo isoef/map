@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحليل بيانات مناطق المملكة العربية السعودية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- مكتبة Plotly للرسوم البيانية -->
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<!-- مكتبة Leaflet للخريطة -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root{
+    --bg:#ffffff; --card:#f8f9fa; --text:#1a1a1a; --muted:#6b7280; --border:#e5e7eb;
+    --primary:#CBA877; --secondary:#027B5F; --shadow:rgba(0,0,0,0.08); --hover:#f0f1f3;
+  }
+  body.dark{
+    --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --border:#334155;
+    --shadow:rgba(0,0,0,0.35); --hover:#273449;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Alexandria', sans-serif; background:var(--bg); color:var(--text);
+    padding:24px; max-width:1600px; margin:0 auto; transition:background .3s, color .3s; overflow-x:hidden;
+  }
+  #loading-bar{
+    position:fixed; top:0; left:0; height:3px; background:linear-gradient(90deg, var(--primary), var(--secondary));
+    width:0%; z-index:9999; opacity:0; transition:width .3s ease-out, opacity .3s ease; box-shadow:0 0 10px var(--primary);
+  }
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(15px); } to { opacity:1; transform:translateY(0); } }
+  .animate-in { animation: fadeInUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+  h1{font-size:1.4rem;color:var(--secondary);font-weight:700;}
+  .theme-btn{background:var(--card);border:1px solid var(--border);width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s;padding:0}
+  .theme-btn:hover{background:var(--hover);border-color:var(--primary);transform:scale(1.08) rotate(15deg)}
+  .theme-btn svg{width:22px;height:22px;transition:transform .4s}
+
+  .filters{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+  @media(max-width:800px){.filters{grid-template-columns:1fr}}
+  .filter-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;transition:box-shadow .2s}
+  .filter-box:hover{box-shadow:0 4px 12px var(--shadow)}
+  .filter-box h3{font-size:.8rem;color:var(--secondary);font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  .filter-actions{display:flex;gap:8px}
+  .filter-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:6px;font-size:.68rem;cursor:pointer;font-family:'Alexandria',sans-serif;transition:all .2s}
+  .filter-actions button:hover{border-color:var(--primary);color:var(--primary);transform:translateY(-1px)}
+  .filter-actions button:active{transform:scale(0.95)}
+  
+  .dropdown-container{position:relative;}
+  .dropdown-btn{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Alexandria',sans-serif;font-size:.8rem;cursor:pointer;text-align:right;display:flex;justify-content:space-between;align-items:center;transition:all .2s}
+  .dropdown-btn:hover{border-color:var(--primary);box-shadow:0 0 0 3px rgba(203,168,119,0.15)}
+  .dropdown-btn::after{content:"";border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--muted);transition:transform .3s}
+  .dropdown-container.open .dropdown-btn::after{transform:rotate(180deg)}
+  
+  .dropdown-list{position:absolute;top:100%;left:0;right:0;margin-top:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);max-height:250px;overflow-y:auto;z-index:100;display:none;padding:8px;opacity:0;transform:translateY(-10px);transition:opacity .2s, transform .2s}
+  .dropdown-container.open .dropdown-list{display:block;opacity:1;transform:translateY(0)}
+  
+  .check-item{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;border-radius:6px;transition:background .15s, padding-right .2s;font-size:.78rem;color:var(--text);user-select:none}
+  .check-item:hover{background:var(--hover);padding-right:14px}
+  .check-item input[type="checkbox"]{accent-color:var(--primary);width:16px;height:16px;cursor:pointer;transition:transform .2s}
+  .check-item input[type="checkbox"]:hover{transform:scale(1.15)}
+  .check-item.secondary input[type="checkbox"]{ accent-color:var(--secondary); }
+
+  .kpis{display:grid;grid-template-columns:repeat(5, 1fr);gap:16px;margin-bottom:22px}
+  @media(max-width:1200px){.kpis{grid-template-columns:repeat(3, 1fr)}}
+  @media(max-width:720px){.kpis{grid-template-columns:repeat(2, 1fr)}}
+  @media(max-width:420px){.kpis{grid-template-columns:1fr}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 16px;transition:transform .3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow .3s;display:flex;flex-direction:column;justify-content:center;min-height:96px;position:relative;overflow:hidden;cursor:pointer}
+  .kpi::before{content:"";position:absolute;top:0;right:0;width:4px;height:100%;background:var(--primary);transition:width .3s}
+  .kpi:nth-child(even)::before{background:var(--secondary)}
+  .kpi:hover{transform:translateY(-5px) scale(1.02);box-shadow:0 12px 28px var(--shadow);z-index:10}
+  .kpi:hover::before{width:8px}
+  .kpi:active{transform:translateY(-2px) scale(0.99)}
+  .kpi .label{color:var(--muted);font-size:.72rem;margin-bottom:8px;font-weight:400;line-height:1.4;transition:color .2s}
+  .kpi:hover .label{color:var(--text)}
+  .kpi .value{font-size:1.45rem;font-weight:700;line-height:1.2;letter-spacing:-0.5px}
+  .kpi .value.c1{color:var(--primary)}
+  .kpi .value.c2{color:var(--secondary)}
+
+  .map-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 22px; box-shadow: 0 4px 12px var(--shadow); transition: background .3s, border-color .3s; position: relative; }
+  .map-header h2 { font-size: 1rem; color: var(--secondary); font-weight: 600; margin-bottom: 12px;}
+  #map { width: 100%; height: 500px; border-radius: 8px; background: #e5e5e5; overflow: hidden; }
+  .leaflet-tooltip { background-color: #ffffff; border: 1px solid #027B5F; color: #027B5F; font-family: 'Alexandria', sans-serif; font-weight: 600; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); direction: rtl; }
+  #map-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.9); padding: 10px 20px; border-radius: 8px; color: #027B5F; font-weight: bold; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+  .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  @media(max-width:900px){.dashboard-grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:transform .3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow .3s;min-width:0; display:flex; flex-direction:column;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 12px 30px var(--shadow)}
+  .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+  .card h2{font-size:.85rem;color:var(--secondary);font-weight:600;text-align:right; margin:0; flex:1; transition:color .2s}
+  .card:hover h2{color:var(--primary)}
+  .print-btn{background:transparent;border:none;cursor:pointer;padding:4px;margin-right:8px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .2s}
+  .print-btn:hover{background:var(--hover);color:var(--primary);transform:scale(1.1) rotate(5deg)}
+  .print-btn:active{transform:scale(0.9)}
+  .print-btn svg{width:18px;height:18px}
+
+  .chart{width:100%;height:340px;flex-grow:1}
+  .chart-sm{width:100%;height:300px;flex-grow:1}
+  table{width:100%;border-collapse:collapse;font-size:.75rem}
+  th,td{padding:8px;text-align:right;border-bottom:1px solid var(--border)}
+  th{color:var(--secondary);font-weight:600;background:var(--card);position:sticky;top:0;font-size:.72rem}
+  tr{transition:background .2s}
+  tr:hover td{background:var(--hover)}
+  tr:hover td:first-child{color:var(--primary);font-weight:bold}
+  input[type=search]{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-bottom:10px;font-size:.82rem;font-family:'Alexandria',sans-serif;transition:all .2s}
+  input[type=search]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(203,168,119,0.15)}
+
+  @media print {
+    body { background: #fff !important; padding: 0; }
+    .header, .filters, .kpis, .theme-btn, .print-btn, .card-header h2, .map-container { display: none !important; }
+    .dashboard-grid { display: block !important; }
+    .card { border: none !important; box-shadow: none !important; page-break-inside: avoid; margin-bottom: 20px; transform: none !important; }
+    .card.print-target { display: block !important; }
+    .card:not(.print-target) { display: none !important; }
+    .chart { height: 500px !important; }
+    .chart-sm { height: 400px !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading-bar"></div>
+
+<div class="header animate-in" style="animation-delay: 0s;">
+  <h1>لوحة تحليل بيانات مناطق المملكة العربية السعودية</h1>
+  <button class="theme-btn" id="themeBtn" aria-label="تبديل الوضع">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+  </button>
+</div>
+
+<div class="filters animate-in" style="animation-delay: 0.1s;">
+  <div class="filter-box">
+    <h3><span>المناطق</span><div class="filter-actions"><button id="selAllRegions">الكل</button><button id="clrRegions">مسح</button></div></h3>
+    <div class="dropdown-container" id="regionDropdown">
+      <div class="dropdown-btn" id="regionBtn">اختر المناطق...</div>
+      <div class="dropdown-list" id="regionList"></div>
+    </div>
+  </div>
+  <div class="filter-box">
+    <h3><span>التصنيفات</span><div class="filter-actions"><button id="selAllCats">الكل</button><button id="clrCats">مسح</button></div></h3>
+    <div class="dropdown-container" id="categoryDropdown">
+      <div class="dropdown-btn" id="categoryBtn">اختر التصنيفات...</div>
+      <div class="dropdown-list" id="categoryList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="kpis animate-in" style="animation-delay: 0.2s;">
+  <div class="kpi" title="إجمالي عدد السكان في المناطق المحددة حسب تعداد الهيئة العامة للإحصاء لعام 2022. يشمل السعوديين وغير السعوديين."><div class="label">إجمالي السكان (2022)</div><div class="value c1" id="kpi-pop">0</div></div>
+  <div class="kpi" title="عدد المناطق الإدارية التي تم تحديدها من القائمة. إجمالي مناطق المملكة 13 منطقة."><div class="label">عدد المناطق المحددة</div><div class="value c2" id="kpi-reg">0</div></div>
+  <div class="kpi" title="مجموع زيارات المواقع التاريخية والتراثية في المناطق المحددة لعام 2024. المصدر: وزارة الثقافة."><div class="label">زيارات المواقع التراثية (2024)</div><div class="value c1" id="kpi-heritage">0</div></div>
+  <div class="kpi" title="إجمالي السجلات التجارية الجديدة المسجلة في الربع الرابع من عام 2024 في المناطق المحددة. المصدر: وزارة التجارة."><div class="label">السجلات التجارية Q4 2024</div><div class="value c2" id="kpi-cr">0</div></div>
+  <div class="kpi" title="إجمالي أطوال مشاريع الطرق التي تم تنفيذها أو استكمالها في المناطق المحددة لعام 2024 (بالكيلومتر). المصدر: وزارة النقل."><div class="label">مشاريع الطرق المنفذة (2024)</div><div class="value c1" id="kpi-roads">0</div></div>
+</div>
+
+<div class="kpis animate-in" style="animation-delay: 0.25s; margin-top:-10px;">
+  <div class="kpi" title="إجمالي عدد المساجد والجوامع ومصليات العيد في المملكة. المصدر: وزارة الشؤون الإسلامية 2026."><div class="label">المساجد والجوامع</div><div class="value c2" id="kpi-mosques">0</div></div>
+  <div class="kpi" title="إجمالي عدد المدارس بجميع مراحلها في المملكة. المصدر: الهيئة العامة للإحصاء 2024."><div class="label">المدارس</div><div class="value c1" id="kpi-schools">0</div></div>
+  <div class="kpi" title="عدد المصانع المنتجة في المدن الصناعية بالمملكة. المصدر: الهيئة العامة للإحصاء 2025."><div class="label">المصانع المنتجة</div><div class="value c2" id="kpi-factories">0</div></div>
+  <div class="kpi" title="كمية المياه المحلاة المنتجة يومياً في المملكة (بالمليون متر مكعب). المصدر: الهيئة السعودية للمياه 2024."><div class="label">إنتاج المياه المحلاة (يومياً)</div><div class="value c1" id="kpi-water">0</div></div>
+  <div class="kpi" title="إجمالي عدد المستشفيات الحكومية في المملكة. المصدر: الهيئة العامة للإحصاء 2025."><div class="label">المستشفيات الحكومية</div><div class="value c2" id="kpi-hospitals">0</div></div>
+</div>
+
+<!-- الخريطة -->
+<div class="map-container animate-in" style="animation-delay: 0.3s;">
+  <div class="map-header">
+    <h2>الخريطة التفاعلية (صور الأقمار الصناعية)</h2>
+  </div>
+  <div id="map-loading">جاري تحميل الحدود الحقيقية...</div>
+  <div id="map"></div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card animate-in" data-cat="pop" id="card-pop" title="التوزيع السكاني للمناطق المحددة بناءً على تعداد 2022. يوضح الفروقات السكانية الكبيرة بين المناطق (مثال: الرياض الأعلى، الباحة الأقل)." style="animation-delay: 0.4s;">
+    <div class="card-header"><h2>السكان حسب المنطقة (2022)</h2><button class="print-btn" onclick="printChart('card-pop')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-pop"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="heritage" id="card-heritage" title="عدد الرحلات المسجلة للمواقع التاريخية والتراثية في كل منطقة خلال 2024. يعكس النشاط السياحي الثقافي. المصدر: وزارة الثقافة." style="animation-delay: 0.45s;">
+    <div class="card-header"><h2>زيارات المواقع التاريخية والتراثية (مليون رحلة) 2024</h2><button class="print-btn" onclick="printChart('card-heritage')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-heritage"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="festival" id="card-festival" title="نسبة حضور السكان للمهرجانات والفعاليات الثقافية في كل منطقة لعام 2024. الرياض ومكة والشرقية تسجل أعلى نسب استقطاب." style="animation-delay: 0.5s;">
+    <div class="card-header"><h2>حضور المهرجانات والفعاليات الثقافية (%) 2024</h2><button class="print-btn" onclick="printChart('card-festival')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-festival"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="cr" id="card-cr" title="عدد السجلات التجارية الجديدة المسجلة في الربع الرابع من 2024 (بالألف). يعكس النمو الاقتصادي والنشاط التجاري في المنطقة." style="animation-delay: 0.55s;">
+    <div class="card-header"><h2>السجلات التجارية الجديدة Q4 2024 (ألف سجل)</h2><button class="print-btn" onclick="printChart('card-cr')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-cr"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="roads" id="card-roads" title="أطوال مشاريع الطرق المنفذة في 2024 (كم). الرياض ومكة والشرقية تستحوذ على النصيب الأكبر من التطوير اللوجستي." style="animation-delay: 0.6s;">
+    <div class="card-header"><h2>أطوال مشاريع الطرق المنفذة (كم) 2024</h2><button class="print-btn" onclick="printChart('card-roads')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-roads"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="traffic" id="card-traffic" title="عدد المركبات العابرة من نقاط التعداد المروري على الطرق بين المدن (بالمليون) لعام 2024. مكة تسجل أعلى كثافة مرورية." style="animation-delay: 0.65s;">
+    <div class="card-header"><h2>المركبات العابرة من نقاط التعداد (مليون) 2024</h2><button class="print-btn" onclick="printChart('card-traffic')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-traffic"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="edu" id="card-edu" title="نسبة إتمام التعليم الابتدائي في كل منطقة. معظم المناطق تسجل 100% أو قريبة منها، مما يعكس نجاح التعليم الأساسي." style="animation-delay: 0.7s;">
+    <div class="card-header"><h2>معدل إتمام التعليم الابتدائي (%) 2024</h2><button class="print-btn" onclick="printChart('card-edu')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart-sm" id="chart-edu"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="agri" id="card-agri" title="مؤشرات الإنتاج الزراعي الوطني (بالألف طن) لعام 2024. يشمل الخضروات المكشوفة والمحمية، التمور، والحبوب." style="animation-delay: 0.75s;">
+    <div class="card-header"><h2>مؤشرات زراعية وطنية (2024)</h2><button class="print-btn" onclick="printChart('card-agri')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart-sm" id="chart-health-agri"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="housing" id="card-housing" title="عدد المساكن المشغولة بأسر سعودية (بالألف) في المناطق الرئيسية لعام 2024. الرياض ومكة تتصدران الاستحواذ السكني." style="animation-delay: 0.8s;">
+    <div class="card-header"><h2>المساكن المشغولة بأسر سعودية (ألف مسكن) 2024</h2><button class="print-btn" onclick="printChart('card-housing')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-housing-donut"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="ownership" id="card-ownership" title="نسبة الأسر السعودية التي تمتلك مسكناً في كل منطقة. حائل والقصيم تسجلان أعلى نسب تملك." style="animation-delay: 0.85s;">
+    <div class="card-header"><h2>نسبة التملك السكني حسب المنطقة (%)</h2><button class="print-btn" onclick="printChart('card-ownership')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-ownership-gauge"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="poultry" id="card-poultry" title="إنتاج الدجاج اللاحم (بالألف طن) في المناطق المنتجة الرئيسية لعام 2024. الرياض، حائل، والقصيم تسيطر على الإنتاج." style="animation-delay: 0.9s;">
+    <div class="card-header"><h2>إنتاج الدجاج اللاحم (ألف طن) 2024</h2><button class="print-btn" onclick="printChart('card-poultry')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-poultry-scatter"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="eggs" id="card-eggs" title="إنتاج بيض المائدة (بالمليار بيضة) لعام 2024. الرياض تنتج أكثر من نصف الإنتاج في المناطق المحددة." style="animation-delay: 0.95s;">
+    <div class="card-header"><h2>إنتاج بيض المائدة (مليار بيضة) 2024</h2><button class="print-btn" onclick="printChart('card-eggs')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-eggs-donut"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="trafficpoints" id="card-trafficpoints" title="عدد نقاط التعداد المروري المثبتة على الطرق بين المدن في كل منطقة. يعكس حجم البنية التحتية للمراقبة المرورية." style="animation-delay: 1s;">
+    <div class="card-header"><h2>نقاط التعداد المروري على الطرق بين المدن (عدد) 2024</h2><button class="print-btn" onclick="printChart('card-trafficpoints')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-trafficpoints-area"></div>
+  </div>
+  
+  <div class="card animate-in" data-cat="milk" id="card-milk" title="إنتاج الحليب الخام (بالمليار لتر) في المناطق المنتجة الرئيسية لعام 2024. الرياض والشرقية هما المنتجان الأكبر." style="animation-delay: 1.05s;">
+    <div class="card-header"><h2>إنتاج الحليب الخام (مليار لتر) 2024</h2><button class="print-btn" onclick="printChart('card-milk')" title="طباعة المؤشر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button></div>
+    <div class="chart" id="chart-milk-scatter"></div>
+  </div>
+</div>
+
+<div class="card animate-in" style="margin-bottom:22px; animation-delay: 1.1s;">
+  <h2>الجدول التفصيلي</h2>
+  <input type="search" id="search" placeholder="ابحث باسم المنطقة…">
+  <div style="max-height:400px;overflow:auto">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>#</th><th>المنطقة</th><th>السكان 2022</th><th>زيارات تراثية (مليون)</th><th>سجلات تجارية (ألف)</th><th>طرق (كم)</th><th>مركبات (مليون)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const ICON_MOON = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>`;
+const ICON_SUN = `<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;
+function setIcon(){ const dark = document.body.classList.contains('dark'); const icon = document.getElementById('themeIcon'); icon.innerHTML = dark ? ICON_SUN : ICON_MOON; icon.style.color = dark ? 'var(--primary)' : 'var(--secondary)'; } setIcon();
+
+const regions = [
+  {id:1, name:"عسير", pop:2024285, heritage:0.89, festival:18, cr:null, roads:120, traffic:13.45},
+  {id:2, name:"الباحة", pop:339174, heritage:null, festival:4, cr:null, roads:126, traffic:6.47},
+  {id:3, name:"الحدود الشمالية", pop:373577, heritage:null, festival:null, cr:null, roads:0, traffic:6.08},
+  {id:4, name:"الجوف", pop:595822, heritage:null, festival:null, cr:null, roads:0, traffic:8.32},
+  {id:5, name:"المدينة المنورة", pop:2137983, heritage:1.87, festival:2, cr:null, roads:27, traffic:42.57},
+  {id:6, name:"القصيم", pop:1336179, heritage:null, festival:6, cr:null, roads:19, traffic:25.77},
+  {id:7, name:"الرياض", pop:8591748, heritage:1.34, festival:35, cr:63, roads:611, traffic:62.61},
+  {id:8, name:"الشرقية", pop:5125254, heritage:0.19, festival:14, cr:25.6, roads:293, traffic:61.38},
+  {id:9, name:"حائل", pop:746406, heritage:null, festival:null, cr:null, roads:22, traffic:10.88},
+  {id:10, name:"جازان", pop:1404997, heritage:0.32, festival:null, cr:null, roads:19, traffic:6.18},
+  {id:11, name:"مكة المكرمة", pop:8021463, heritage:1.21, festival:15, cr:27.7, roads:304, traffic:157.04},
+  {id:12, name:"نجران", pop:592300, heritage:null, festival:null, cr:null, roads:0, traffic:8.13},
+  {id:13, name:"تبوك", pop:886036, heritage:null, festival:null, cr:null, roads:0, traffic:11.52}
+];
+const eduData = [ {name:"المدينة المنورة", rate:100}, {name:"تبوك", rate:100}, {name:"حائل", rate:100}, {name:"الحدود الشمالية", rate:100}, {name:"الجوف", rate:100}, {name:"القصيم", rate:99.66}, {name:"عسير", rate:99.63}, {name:"الباحة", rate:99.50}, {name:"الشرقية", rate:99}, {name:"نجران", rate:98.90}, {name:"جازان", rate:98.88}, {name:"الرياض", rate:98.86}, {name:"مكة المكرمة", rate:98.75} ];
+const housingData = [ {name:"الرياض", value:1050}, {name:"مكة المكرمة", value:1040}, {name:"الشرقية", value:700}, {name:"عسير", value:320.8}, {name:"المدينة المنورة", value:315.2} ];
+const ownershipData = [ {name:"حائل", rate:74.9}, {name:"القصيم", rate:72.1}, {name:"جازان", rate:70.4}, {name:"عسير", rate:69.1}, {name:"الباحة", rate:68.0}, {name:"نجران", rate:65.7}, {name:"الرياض", rate:60.7} ];
+const poultryData = [ {name:"الرياض", value:359.7}, {name:"حائل", value:295}, {name:"القصيم", value:200} ];
+const eggsData = [ {name:"الرياض", value:3.2}, {name:"مكة المكرمة", value:1.5}, {name:"الشرقية", value:1.1} ];
+const trafficPointsData = [ {name:"مكة المكرمة", value:41}, {name:"الشرقية", value:37}, {name:"الرياض", value:29}, {name:"المدينة المنورة", value:26}, {name:"تبوك", value:14}, {name:"حائل", value:12}, {name:"القصيم", value:11}, {name:"عسير", value:10}, {name:"نجران", value:10}, {name:"الجوف", value:8}, {name:"الحدود الشمالية", value:8}, {name:"الباحة", value:6}, {name:"جازان", value:3} ];
+const milkData = [ {name:"الرياض", value:1.6}, {name:"الشرقية", value:1.1} ];
+
+const CATEGORIES = [
+  {key:"pop", label:"السكان"}, {key:"heritage", label:"السياحة والآثار"}, {key:"festival", label:"الفعاليات الثقافية"},
+  {key:"cr", label:"التجارة"}, {key:"roads", label:"الطرق"}, {key:"traffic", label:"النقل"},
+  {key:"edu", label:"التعليم"}, {key:"agri", label:"الزراعة"}, {key:"housing", label:"المساكن"},
+  {key:"ownership", label:"التملك السكني"}, {key:"poultry", label:"الدجاج"}, {key:"eggs", label:"البيض"},
+  {key:"trafficpoints", label:"نقاط المرور"}, {key:"milk", label:"الحليب"}
+];
+const C = { primary:'#CBA877', secondary:'#027B5F' };
+let selectedRegions = new Set(regions.map(r => r.id));
+let selectedCategories = new Set(CATEGORIES.map(c => c.key));
+
+// ==========================================
+// 1. الخريطة (Leaflet + GitHub Raw Data)
+// ==========================================
+let map;
+let geoJsonLayer;
+
+// بيانات السكان لربطها بالخريطة
+const regionsDataEn = {
+  "Ar Riyad": 8591748, "Makkah": 8021463, "Ash Sharqiyah": 5125254,
+  "Al Madinah": 2137983, "`Asir": 2024285, "Jizan": 1404997,
+  "Al Quassim": 1336179, "Tabuk": 886036, "Ha'il": 746406,
+  "Al Jawf": 595822, "Najran": 592300, "Al Hudud ash Shamaliyah": 373577,
+  "Al Bahah": 339174
+};
+const nameArMap = {
+  "Ar Riyad": "الرياض", "Makkah": "مكة المكرمة", "Ash Sharqiyah": "الشرقية",
+  "Al Madinah": "المدينة المنورة", "`Asir": "عسير", "Jizan": "جازان",
+  "Al Quassim": "القصيم", "Tabuk": "تبوك", "Ha'il": "حائل",
+  "Al Jawf": "الجوف", "Najran": "نجران", "Al Hudud ash Shamaliyah": "الحدود الشمالية",
+  "Al Bahah": "الباحة"
+};
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([23.8859, 45.0792], 6);
+  
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri',
+    maxZoom: 19
+  }).addTo(map);
+
+  // جلب ملف الحدود الحقيقية من مستودعك على GitHub
+  fetch('https://raw.githubusercontent.com/isoef/map/main/SAU_adm1.json')
+    .then(res => {
+      if(!res.ok) throw new Error('Network error');
+      return res.json();
+    })
+    .then(data => {
+      document.getElementById('map-loading').style.display = 'none';
+      
+      geoJsonLayer = L.geoJSON(data, {
+        style: function(feature) {
+          const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
+          let pop = 0;
+          for (let key in regionsDataEn) {
+            if (engName.includes(key) || key.includes(engName)) { pop = regionsDataEn[key]; break; }
+          }
+          
+          const maxPop = 9000000;
+          const opacity = Math.max(0.2, Math.min(0.85, pop / maxPop));
+          
+          return {
+            fillColor: `rgba(2, 123, 95, ${opacity})`,
+            weight: 2,
+            opacity: 1,
+            color: '#CBA877',
+            fillOpacity: 0.65
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
+          let arName = engName;
+          let pop = 0;
+          
+          for (let key in nameArMap) {
+            if (engName.includes(key) || key.includes(engName)) { arName = nameArMap[key]; pop = regionsDataEn[key]; break; }
+          }
+          
+          layer.on('mouseover', function () {
+            this.setStyle({ weight: 3, color: '#ffffff', fillOpacity: 0.85 });
+            this.bringToFront();
+          });
+          layer.on('mouseout', function () { geoJsonLayer.resetStyle(this); });
+          layer.on('click', function () {
+            const targetRegion = regions.find(r => r.name === arName);
+            if(targetRegion) {
+              if(selectedRegions.size === 1 && selectedRegions.has(targetRegion.id)) selectedRegions = new Set(regions.map(x => x.id));
+              else selectedRegions = new Set([targetRegion.id]);
+              buildRegionList(); refreshAll();
+            }
+          });
+          layer.bindTooltip(arName, { permanent: false, direction: 'top', className: 'leaflet-tooltip' });
+        }
+      }).addTo(map);
+    })
+    .catch(err => {
+      document.getElementById('map-loading').innerText = 'تعذر الاتصال بالخادم لجلب الحدود. تأكد من صحة الرابط.';
+      console.error(err);
+    });
+}
+
+// ==========================================
+// 2. إدارة الفلاتر
+// ==========================================
+const loadingBar = document.getElementById('loading-bar');
+let isUpdating = false;
+function startLoading() { if (isUpdating) return; isUpdating = true; loadingBar.style.opacity = '1'; loadingBar.style.width = '0%'; setTimeout(() => { loadingBar.style.width = '40%'; }, 20); setTimeout(() => { loadingBar.style.width = '75%'; }, 150); }
+function finishLoading() { loadingBar.style.width = '100%'; setTimeout(() => { loadingBar.style.opacity = '0'; setTimeout(() => { loadingBar.style.width = '0%'; isUpdating = false; }, 300); }, 150); }
+function toggleDropdown(id){ document.getElementById(id).classList.toggle('open'); }
+document.addEventListener('click', (e) => { if(!e.target.closest('.dropdown-container')){ document.querySelectorAll('.dropdown-container').forEach(el => el.classList.remove('open')); } });
+document.getElementById('regionBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown('regionDropdown'); });
+document.getElementById('categoryBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown('categoryDropdown'); });
+
+function updateRegionBtnText(){
+  const btn = document.getElementById('regionBtn');
+  if(selectedRegions.size === regions.length) btn.textContent = "كل المناطق";
+  else if(selectedRegions.size === 0) btn.textContent = "لم يتم اختيار مناطق";
+  else if(selectedRegions.size === 1) btn.textContent = regions.find(r=>r.id===Array.from(selectedRegions)[0]).name;
+  else btn.textContent = `${selectedRegions.size} مناطق مختارة`;
+}
+function updateCategoryBtnText(){
+  const btn = document.getElementById('categoryBtn');
+  if(selectedCategories.size === CATEGORIES.length) btn.textContent = "كل التصنيفات";
+  else if(selectedCategories.size === 0) btn.textContent = "لم يتم اختيار تصنيفات";
+  else if(selectedCategories.size === 1) btn.textContent = CATEGORIES.find(c=>c.key===Array.from(selectedCategories)[0]).label;
+  else btn.textContent = `${selectedCategories.size} تصنيفات مختارة`;
+}
+function buildRegionList(){
+  const box = document.getElementById('regionList'); box.innerHTML = '';
+  regions.forEach(r => {
+    const label = document.createElement('label'); label.className = 'check-item';
+    label.innerHTML = `<input type="checkbox" ${selectedRegions.has(r.id) ? 'checked' : ''}> <span>${r.name}</span>`;
+    label.querySelector('input').addEventListener('change', (e) => { if(e.target.checked) selectedRegions.add(r.id); else selectedRegions.delete(r.id); updateRegionBtnText(); refreshAll(); });
+    box.appendChild(label);
+  });
+  updateRegionBtnText();
+}
+function buildCategoryList(){
+  const box = document.getElementById('categoryList'); box.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const label = document.createElement('label'); label.className = 'check-item secondary';
+    label.innerHTML = `<input type="checkbox" ${selectedCategories.has(c.key) ? 'checked' : ''}> <span>${c.label}</span>`;
+    label.querySelector('input').addEventListener('change', (e) => { if(e.target.checked) selectedCategories.add(c.key); else selectedCategories.delete(c.key); updateCategoryBtnText(); refreshAll(); });
+    box.appendChild(label);
+  });
+  updateCategoryBtnText();
+}
+
+// ==========================================
+// 3. الرسوم البيانية
+// ==========================================
+const fmt = n => n.toLocaleString('en-US');
+const themeColors = () => { const dark = document.body.classList.contains('dark'); return { text: dark ? '#e2e8f0' : '#1a1a1a', grid: dark ? '#334155' : '#e5e7eb', hover: dark ? '#1e293b' : '#ffffff' }; };
+const getHoverLabel = (fontColor) => { return { bgcolor: '#ffffff', bordercolor: fontColor, font: { color: fontColor, family: 'Alexandria, sans-serif', size: 12 } }; };
+const baseLayout = (tooltipColor = C.secondary) => { const tc = themeColors(); return { paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:tc.text, family:'Alexandria, sans-serif', size:10}, margin:{t:20,r:15,b:65,l:60}, hoverlabel: getHoverLabel(tooltipColor), transition: { duration: 400, easing: 'cubic-in-out' } }; };
+const filteredRegions = () => regions.filter(r => selectedRegions.has(r.id));
+const filterByName = (arr) => { const names = new Set(filteredRegions().map(r => r.name)); return arr.filter(d => names.has(d.name)); };
+function toggleCard(chartId, show) { const el = document.getElementById(chartId); if (!el) return; const card = el.closest('.card'); if (card) { card.style.display = show ? 'flex' : 'none'; } }
+function attachClickEvent(chartId) {
+  const el = document.getElementById(chartId); if(!el) return;
+  el.removeAllListeners && el.removeAllListeners('plotly_click');
+  el.on('plotly_click', function(data){
+    let clickedName = ''; if (data.points && data.points.length > 0) clickedName = data.points[0].x || data.points[0].label || data.points[0].text;
+    if (clickedName) {
+      const targetRegion = regions.find(r => r.name === clickedName || clickedName.includes(r.name));
+      if(targetRegion) {
+        if(selectedRegions.size === 1 && selectedRegions.has(targetRegion.id)) selectedRegions = new Set(regions.map(x => x.id));
+        else selectedRegions = new Set([targetRegion.id]);
+        buildRegionList(); refreshAll();
+      }
+    }
+  });
+}
+
+function buildPop(){
+  return new Promise(resolve => {
+    const sorted = [...filteredRegions()].sort((a,b)=>b.pop-a.pop);
+    if(sorted.length === 0){ toggleCard('chart-pop', false); return resolve(); }
+    toggleCard('chart-pop', true);
+    Plotly.react('chart-pop', [{ x: sorted.map(r=>r.name), y: sorted.map(r=>r.pop), type:'bar', marker:{color:C.primary, line:{color:C.secondary, width:1}}, text: sorted.map(r=>(r.pop/1e6).toFixed(1)+'M'), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>عدد السكان: %{y:,.0f} نسمة<extra></extra>' }], {...baseLayout(C.primary), yaxis:{gridcolor:themeColors().grid, title:'عدد السكان', tickformat:'.2s'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-pop');
+  });
+}
+function buildHeritage(){
+  return new Promise(resolve => {
+    const hr = filteredRegions().filter(r=>r.heritage!==null);
+    if(hr.length === 0){ toggleCard('chart-heritage', false); return resolve(); }
+    toggleCard('chart-heritage', true);
+    Plotly.react('chart-heritage', [{ x: hr.map(r=>r.name), y: hr.map(r=>r.heritage), type:'bar', marker:{color:C.secondary, line:{color:C.primary, width:1}}, text: hr.map(r=>r.heritage.toFixed(2)), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>الزيارات: %{y:.2f} مليون رحلة<extra></extra>' }], {...baseLayout(C.secondary), yaxis:{gridcolor:themeColors().grid, title:'مليون رحلة'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-heritage');
+  });
+}
+function buildFestival(){
+  return new Promise(resolve => {
+    const fr = filteredRegions().filter(r=>r.festival!==null).sort((a,b)=>b.festival-a.festival);
+    if(fr.length === 0){ toggleCard('chart-festival', false); return resolve(); }
+    toggleCard('chart-festival', true);
+    Plotly.react('chart-festival', [{ x: fr.map(r=>r.name), y: fr.map(r=>r.festival), type:'bar', marker:{color:C.primary, line:{color:C.secondary, width:1}}, text: fr.map(r=>r.festival+'%'), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>نسبة الحضور: %{y}%<extra></extra>' }], {...baseLayout(C.primary), yaxis:{gridcolor:themeColors().grid, title:'النسبة (%)'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-festival');
+  });
+}
+function buildCR(){
+  return new Promise(resolve => {
+    const cr = filteredRegions().filter(r=>r.cr!==null);
+    if(cr.length === 0){ toggleCard('chart-cr', false); return resolve(); }
+    toggleCard('chart-cr', true);
+    Plotly.react('chart-cr', [{ x: cr.map(r=>r.name), y: cr.map(r=>r.cr), type:'bar', marker:{color:C.secondary, line:{color:C.primary, width:1}}, text: cr.map(r=>r.cr.toFixed(1)), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>السجلات: %{y:.1f} ألف سجل<extra></extra>' }], {...baseLayout(C.secondary), yaxis:{gridcolor:themeColors().grid, title:'ألف سجل'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-cr');
+  });
+}
+function buildRoads(){
+  return new Promise(resolve => {
+    const rr = filteredRegions().filter(r=>r.roads>0).sort((a,b)=>b.roads-a.roads);
+    if(rr.length === 0){ toggleCard('chart-roads', false); return resolve(); }
+    toggleCard('chart-roads', true);
+    Plotly.react('chart-roads', [{ x: rr.map(r=>r.name), y: rr.map(r=>r.roads), type:'bar', marker:{color:C.primary, line:{color:C.secondary, width:1}}, text: rr.map(r=>r.roads), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>أطوال الطرق: %{y} كم<extra></extra>' }], {...baseLayout(C.primary), yaxis:{gridcolor:themeColors().grid, title:'كم'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-roads');
+  });
+}
+function buildTraffic(){
+  return new Promise(resolve => {
+    const ts = [...filteredRegions()].sort((a,b)=>b.traffic-a.traffic);
+    if(ts.length === 0){ toggleCard('chart-traffic', false); return resolve(); }
+    toggleCard('chart-traffic', true);
+    Plotly.react('chart-traffic', [{ x: ts.map(r=>r.name), y: ts.map(r=>r.traffic), type:'bar', marker:{color:C.secondary, line:{color:C.primary, width:1}}, text: ts.map(r=>r.traffic.toFixed(1)), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>المركبات العابرة: %{y:.1f} مليون<extra></extra>' }], {...baseLayout(C.secondary), yaxis:{gridcolor:themeColors().grid, title:'مليون مركبة'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-traffic');
+  });
+}
+function buildEdu(){
+  return new Promise(resolve => {
+    const es = [...filterByName(eduData)].sort((a,b)=>b.rate-a.rate);
+    if(es.length === 0){ toggleCard('chart-edu', false); return resolve(); }
+    toggleCard('chart-edu', true);
+    Plotly.react('chart-edu', [{ x: es.map(r=>r.name), y: es.map(r=>r.rate), type:'bar', marker:{color:C.primary, line:{color:C.secondary, width:1}}, text: es.map(r=>r.rate.toFixed(1)+'%'), textposition:'outside', textfont:{color:themeColors().text, size:8}, hovertemplate:'<b>المنطقة: %{x}</b><br>نسبة الإتمام: %{y:.2f}%<extra></extra>' }], {...baseLayout(C.primary), margin:{t:15,r:10,b:75,l:55}, yaxis:{gridcolor:themeColors().grid, title:'نسبة الإتمام (%)', range:[98,101]}, xaxis:{tickangle:-40, tickfont:{size:8}}}).then(resolve);
+    attachClickEvent('chart-edu');
+  });
+}
+function buildAgri(){
+  return new Promise(resolve => {
+    const ind = [ {name:'الخضروات المكشوفة (ألف طن)', value:2745, color:C.secondary}, {name:'الخضروات المحمية (ألف طن)', value:797, color:C.primary}, {name:'التمور (ألف طن)', value:1923, color:C.secondary}, {name:'الحبوب (ألف طن)', value:1651, color:C.primary} ];
+    toggleCard('chart-health-agri', true);
+    Plotly.react('chart-health-agri', [{ x: ind.map(i=>i.name), y: ind.map(i=>i.value), type:'bar', marker:{color:ind.map(i=>i.color), line:{color:C.primary, width:1}}, text: ind.map(i=>fmt(i.value)), textposition:'outside', textfont:{color:themeColors().text, size:9}, hovertemplate:'<b>المحصول: %{x}</b><br>الإنتاج: %{y:,.0f}<extra></extra>' }], {...baseLayout(C.secondary), margin:{t:15,r:10,b:90,l:65}, yaxis:{gridcolor:themeColors().grid, title:'ألف طن'}, xaxis:{tickangle:-30, tickfont:{size:8}}}).then(resolve);
+  });
+}
+function buildHousingDonut(){
+  return new Promise(resolve => {
+    const data = filterByName(housingData);
+    if(data.length === 0){ toggleCard('chart-housing-donut', false); return resolve(); }
+    toggleCard('chart-housing-donut', true);
+    const colors = data.map((d,i) => i % 2 === 0 ? C.primary : C.secondary);
+    Plotly.react('chart-housing-donut', [{ labels: data.map(d=>d.name), values: data.map(d=>d.value), type:'pie', hole:0.55, marker:{colors:colors}, textinfo:'label+percent', textfont:{size:9, color:themeColors().text}, hovertemplate:'<b>المنطقة: %{label}</b><br>عدد المساكن: %{value} ألف مسكن<br>النسبة: %{percent}<extra></extra>' }], {...baseLayout(C.primary), margin:{t:10,r:10,b:10,l:10}, showlegend:false}).then(resolve);
+    attachClickEvent('chart-housing-donut');
+  });
+}
+function buildOwnershipGauge(){
+  return new Promise(resolve => {
+    const data = filterByName(ownershipData);
+    if(data.length === 0){ toggleCard('chart-ownership-gauge', false); return resolve(); }
+    toggleCard('chart-ownership-gauge', true);
+    const top = [...data].sort((a,b)=>b.rate-a.rate)[0]; const tc = themeColors();
+    Plotly.react('chart-ownership-gauge', [{ type:'indicator', mode:'gauge+number', value: top.rate, number:{suffix:'%', font:{color:tc.text, size:28}}, title:{text:top.name, font:{color:tc.text, size:12}}, gauge:{ axis:{range:[50,100], tickcolor:tc.text}, bar:{color:C.primary}, bgcolor:'transparent', steps:[ {range:[50,65], color:tc.grid}, {range:[65,80], color:'rgba(203,168,119,0.3)'}, {range:[80,100], color:'rgba(2,123,95,0.3)'} ], threshold:{line:{color:C.secondary, width:3}, thickness:0.75, value: top.rate} }, hovertemplate:'<b>المنطقة: %{title.text}</b><br>نسبة التملك: %{value}%<extra></extra>' }], {...baseLayout(C.secondary), margin:{t:40,r:30,b:20,l:30}}).then(resolve);
+    attachClickEvent('chart-ownership-gauge');
+  });
+}
+function buildPoultryScatter(){
+  return new Promise(resolve => {
+    const data = filterByName(poultryData);
+    if(data.length === 0){ toggleCard('chart-poultry-scatter', false); return resolve(); }
+    toggleCard('chart-poultry-scatter', true);
+    const tc = themeColors();
+    Plotly.react('chart-poultry-scatter', [{ x: data.map(d=>d.name), y: data.map(d=>d.value), mode:'markers+text', marker:{size: data.map(d=>d.value/5), color:C.secondary, line:{color:C.primary, width:2}}, text: data.map(d=>d.value+'K'), textposition:'top center', textfont:{color:tc.text, size:10}, hovertemplate:'<b>المنطقة: %{x}</b><br>إنتاج الدجاج: %{y} ألف طن<extra></extra>' }], {...baseLayout(C.primary), yaxis:{gridcolor:tc.grid, title:'ألف طن', range:[150,400]}, xaxis:{tickfont:{size:10}}}).then(resolve);
+    attachClickEvent('chart-poultry-scatter');
+  });
+}
+function buildEggsDonut(){
+  return new Promise(resolve => {
+    const data = filterByName(eggsData);
+    if(data.length === 0){ toggleCard('chart-eggs-donut', false); return resolve(); }
+    toggleCard('chart-eggs-donut', true);
+    const colors = data.map((d,i) => i % 2 === 0 ? C.primary : C.secondary);
+    Plotly.react('chart-eggs-donut', [{ labels: data.map(d=>d.name), values: data.map(d=>d.value), type:'pie', hole:0.5, marker:{colors:colors}, textinfo:'label+value', textfont:{size:10, color:themeColors().text}, hovertemplate:'<b>المنطقة: %{label}</b><br>إنتاج البيض: %{value} مليار بيضة<extra></extra>' }], {...baseLayout(C.secondary), margin:{t:10,r:10,b:10,l:10}, showlegend:false}).then(resolve);
+    attachClickEvent('chart-eggs-donut');
+  });
+}
+function buildTrafficPointsArea(){
+  return new Promise(resolve => {
+    const data = filterByName(trafficPointsData);
+    if(data.length === 0){ toggleCard('chart-trafficpoints-area', false); return resolve(); }
+    toggleCard('chart-trafficpoints-area', true);
+    const tc = themeColors(); const sorted = [...data].sort((a,b)=>b.value-a.value);
+    Plotly.react('chart-trafficpoints-area', [{ x: sorted.map(d=>d.name), y: sorted.map(d=>d.value), type:'scatter', mode:'lines+markers+text', fill:'tozeroy', fillcolor:'rgba(203,168,119,0.25)', line:{color:C.primary, width:3}, marker:{color:C.secondary, size:10, line:{color:C.primary, width:2}}, text: sorted.map(d=>d.value), textposition:'top center', textfont:{color:tc.text, size:9}, hovertemplate:'<b>المنطقة: %{x}</b><br>نقاط التعداد: %{y} نقطة<extra></extra>' }], {...baseLayout(C.primary), yaxis:{gridcolor:tc.grid, title:'عدد النقاط'}, xaxis:{tickangle:-35, tickfont:{size:9}}}).then(resolve);
+    attachClickEvent('chart-trafficpoints-area');
+  });
+}
+function buildMilkScatter(){
+  return new Promise(resolve => {
+    const data = filterByName(milkData);
+    if(data.length === 0){ toggleCard('chart-milk-scatter', false); return resolve(); }
+    toggleCard('chart-milk-scatter', true);
+    const tc = themeColors();
+    Plotly.react('chart-milk-scatter', [{ x: data.map(d=>d.name), y: data.map(d=>d.value), mode:'markers+text', marker:{size: data.map(()=>70), color: data.map((d,i)=> i%2===0?C.primary:C.secondary), line:{color:tc.text, width:2}}, text: data.map(d=>d.value+'B'), textposition:'middle center', textfont:{color:'#fff', size:12, family:'Alexandria'}, hovertemplate:'<b>المنطقة: %{x}</b><br>إنتاج الحليب: %{y} مليار لتر<extra></extra>' }], {...baseLayout(C.secondary), yaxis:{gridcolor:tc.grid, title:'مليار لتر', range:[0.8,1.8]}, xaxis:{tickfont:{size:11}}}).then(resolve);
+    attachClickEvent('chart-milk-scatter');
+  });
+}
+
+function applyCategoryVisibility(){ document.querySelectorAll('[data-cat]').forEach(el => { el.style.display = selectedCategories.has(el.dataset.cat) ? '' : 'none'; }); }
+
+function animateValue(id, start, end, duration, suffix = '', decimals = 0) {
+  const obj = document.getElementById(id); if (!obj) return;
+  if (start === end) { obj.textContent = end.toFixed(decimals) + suffix; return; }
+  let startTimestamp = null;
+  const step = (timestamp) => {
+    if (!startTimestamp) startTimestamp = timestamp;
+    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+    const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+    const current = start + (end - start) * easeOutQuart;
+    obj.textContent = current.toFixed(decimals) + suffix;
+    if (progress < 1) window.requestAnimationFrame(step);
+  };
+  window.requestAnimationFrame(step);
+}
+
+const prevKPIValues = { 'kpi-pop': 0, 'kpi-reg': 0, 'kpi-heritage': 0, 'kpi-cr': 0, 'kpi-roads': 0, 'kpi-mosques': 0, 'kpi-schools': 0, 'kpi-factories': 0, 'kpi-water': 0, 'kpi-hospitals': 0 };
+
+function updateKPIs(){
+  const fr = filteredRegions();
+  const totalPop = fr.reduce((s,r)=>s+r.pop,0) / 1e6;
+  const totalCR = fr.reduce((s,r)=>s+(r.cr||0),0);
+  const totalRoads = fr.reduce((s,r)=>s+r.roads,0);
+  const totalHeritage = fr.reduce((s,r)=>s+(r.heritage||0),0);
+  const regCount = fr.length;
+
+  animateValue('kpi-pop', prevKPIValues['kpi-pop'], totalPop, 500, 'M', 1);
+  animateValue('kpi-reg', prevKPIValues['kpi-reg'], regCount, 500, '', 0);
+  animateValue('kpi-heritage', prevKPIValues['kpi-heritage'], totalHeritage, 500, 'M', 1);
+  animateValue('kpi-cr', prevKPIValues['kpi-cr'], totalCR, 500, 'K', 1);
+  animateValue('kpi-roads', prevKPIValues['kpi-roads'], totalRoads, 500, ' كم', 0);
+
+  animateValue('kpi-mosques', prevKPIValues['kpi-mosques'], 85968, 800, '', 0);
+  animateValue('kpi-schools', prevKPIValues['kpi-schools'], 31412, 800, '', 0);
+  animateValue('kpi-factories', prevKPIValues['kpi-factories'], 4938, 800, '', 0);
+  animateValue('kpi-water', prevKPIValues['kpi-water'], 11.5, 800, 'M م³', 1);
+  animateValue('kpi-hospitals', prevKPIValues['kpi-hospitals'], 355, 800, '', 0);
+
+  prevKPIValues['kpi-pop'] = totalPop; prevKPIValues['kpi-reg'] = regCount; prevKPIValues['kpi-heritage'] = totalHeritage; prevKPIValues['kpi-cr'] = totalCR; prevKPIValues['kpi-roads'] = totalRoads;
+  prevKPIValues['kpi-mosques'] = 85968; prevKPIValues['kpi-schools'] = 31412; prevKPIValues['kpi-factories'] = 4938; prevKPIValues['kpi-water'] = 11.5; prevKPIValues['kpi-hospitals'] = 355;
+}
+
+const tbody = document.querySelector('#tbl tbody');
+function renderTable(filter=""){
+  tbody.innerHTML = "";
+  const list = filteredRegions().filter(r=>r.name.includes(filter)).sort((a,b)=>b.pop-a.pop);
+  if(list.length === 0){ tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted)">لا توجد نتائج</td></tr>`; return; }
+  list.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.id}</td><td><strong>${r.name}</strong></td><td>${fmt(r.pop)}</td><td>${r.heritage!==null ? r.heritage.toFixed(2) : '—'}</td><td>${r.cr!==null ? r.cr.toFixed(1) : '—'}</td><td>${r.roads>0 ? fmt(r.roads) : '—'}</td><td>${r.traffic.toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function refreshAll(){
+  startLoading(); applyCategoryVisibility(); updateKPIs();
+  const promises = [];
+  if(selectedCategories.has('pop')) promises.push(buildPop());
+  if(selectedCategories.has('heritage')) promises.push(buildHeritage());
+  if(selectedCategories.has('festival')) promises.push(buildFestival());
+  if(selectedCategories.has('cr')) promises.push(buildCR());
+  if(selectedCategories.has('roads')) promises.push(buildRoads());
+  if(selectedCategories.has('traffic')) promises.push(buildTraffic());
+  if(selectedCategories.has('edu')) promises.push(buildEdu());
+  if(selectedCategories.has('agri')) promises.push(buildAgri());
+  if(selectedCategories.has('housing')) promises.push(buildHousingDonut());
+  if(selectedCategories.has('ownership')) promises.push(buildOwnershipGauge());
+  if(selectedCategories.has('poultry')) promises.push(buildPoultryScatter());
+  if(selectedCategories.has('eggs')) promises.push(buildEggsDonut());
+  if(selectedCategories.has('trafficpoints')) promises.push(buildTrafficPointsArea());
+  if(selectedCategories.has('milk')) promises.push(buildMilkScatter());
+  renderTable(document.getElementById('search').value);
+  Promise.all(promises).then(() => finishLoading());
+}
+
+document.getElementById('selAllRegions').addEventListener('click', ()=>{ selectedRegions = new Set(regions.map(r=>r.id)); buildRegionList(); refreshAll(); });
+document.getElementById('clrRegions').addEventListener('click', ()=>{ selectedRegions.clear(); buildRegionList(); refreshAll(); });
+document.getElementById('selAllCats').addEventListener('click', ()=>{ selectedCategories = new Set(CATEGORIES.map(c=>c.key)); buildCategoryList(); refreshAll(); });
+document.getElementById('clrCats').addEventListener('click', ()=>{ selectedCategories.clear(); buildCategoryList(); refreshAll(); });
+document.getElementById('themeBtn').addEventListener('click', ()=>{ document.body.classList.toggle('dark'); setIcon(); refreshAll(); });
+document.getElementById('search').addEventListener('input', e => renderTable(e.target.value));
+
+function printChart(cardId) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('print-target'));
+  document.getElementById(cardId).classList.add('print-target');
+  window.print();
+  setTimeout(() => { document.getElementById(cardId).classList.remove('print-target'); }, 1000);
+}
+
+// بدء التشغيل
+initMap();
+buildRegionList();
+buildCategoryList();
+refreshAll();
+</script>
+</body>
+</html>
