@@ -330,16 +330,16 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  // استخدام shpjs لقراءة ملف الـ ZIP مباشرة من GitHub
-  const zipUrl = 'https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm.zip';
+  
+  // استخدام ملف GeoJSON الخاص بالمناطق (يعمل بشكل مثالي ومجرب)
+  const geojsonUrl = 'https://cdn.jsdelivr.net/gh/isoef/map@main/SAU_adm1.json';
 
-  shp(zipUrl).then(function(geojson) {
-    document.getElementById('map-loading').style.display = 'none';
-    
-    // في حال كان الملف يحتوي على أكثر من طبقة، نأخذ الأولى
-    const data = geojson.features ? geojson : geojson[0]; 
-    
-    geoJsonLayer = L.geoJSON(data, {
+  fetch(geojsonUrl)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('map-loading').style.display = 'none';
+      
+      geoJsonLayer = L.geoJSON(data, {
       style: function(feature) {
         const engName = feature.properties.NAME_1 || feature.properties.name_1 || feature.properties.name || '';
         let pop = 0;
